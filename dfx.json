@@ -9,18 +9,27 @@
       "type": "motoko"
     },
     "frontend": {
-      "dependencies": ["Axon"],
+      "dependencies": [
+        "Axon"
+      ],
       "frontend": {
-        "entrypoint": "src/axon-ui/out/index.html"
+        "entrypoint": "src/axon-ui/.next/server/pages/index.html"
       },
-      "source": ["src/axon-ui/out"],
+      "source": [
+        "src/axon-ui/.next/server/pages"
+      ],
       "type": "assets"
-    },"frontendTest": {
-      "dependencies": ["AxonTest"],
+    },
+    "frontendTest": {
+      "dependencies": [
+        "AxonTest"
+      ],
       "frontend": {
-        "entrypoint": "src/axon-ui/out/index.html"
+        "entrypoint": "src/axon-ui/.next/server/pages/index.html"
       },
-      "source": ["src/axon-ui/out"],
+      "source": [
+        "src/axon-ui/.next/server/pages"
+      ],
       "type": "assets"
     }
   },
@@ -33,6 +42,6 @@
       "subnet_type": "system"
     }
   },
-  "dfx": "0.13.1",
+  "dfx": "0.20.1",
   "version": 1
 }

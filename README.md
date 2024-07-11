@@ -39,7 +39,7 @@ cd src/axon-ui
 
 Follow the instructions to add the Psycadelic context as a github package registry: https://github.com/Psychedelic/plug-inpage-provider#-installation
 
-npm i
+c
 npm run build
 ```
 ```sh
