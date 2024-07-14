@@ -794,7 +794,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
       Iter.filter<(Principal, Nat)>(
         Map.entries(axon.ledger),
         func(p : Principal, idx : Nat) : Bool {
-          p != treasuryId or isRewardProposal // Разрешаем казначейству голосовать за награды
+          p != treasuryId or isRewardProposal // Allow treasury to vote on reward proposals
         },
       )
     );
