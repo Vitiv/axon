@@ -697,7 +697,7 @@ shared actor class Proxy(owner : Principal) = this {
     */
   public shared func deposit_cycles() : async () {
     let amount = Cycles.available();
-    let accepted = Cycles.accept(amount);
+    let accepted = Cycles.accept<system>(amount);
     assert (accepted == amount);
   };
 

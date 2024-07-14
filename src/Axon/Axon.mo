@@ -78,7 +78,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
   // ---- Administrator Role
   stable var master : Principal = creator;
 
-  let daoAdmin : Principal = master;
+  // let daoAdmin : Principal = master;
   var rewardAdmin : Principal = master;
 
   // Returns a boolean indicating if the specified principal is an admin.
@@ -640,7 +640,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
  */
   public func wallet_receive() : async Nat {
     let amount = Cycles.available();
-    Cycles.accept(amount);
+    Cycles.accept<system>(amount);
   };
 
   // Accept cycles
@@ -653,7 +653,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
   public shared (msg) func recycle_cycles(axonId : Nat, floor : Nat) : async Nat {
     assert (msg.caller == master);
     let axon = SB.get(state_current.axons, axonId);
-    Cycles.accept(Cycles.available());
+    Cycles.accept<system>(Cycles.available());
   };
 
   // Transfer tokens
@@ -755,6 +755,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
     };
 
     switch (request.proposal) {
+      case (#RewardCommand((command, _))) {};
       case (#NeuronCommand((command, _))) {
         if (neuronIdsFromInfos(axon.id).size() == 0) {
           return #err(#NoNeurons);
@@ -784,12 +785,16 @@ shared ({ caller = creator }) actor class AxonService() = this {
     // Snapshot the ledger at creation
     // Get all voters that are not the treasury
     let treasuryId = Principal.fromActor(axon.proxy);
+    let isRewardProposal = switch (request.proposal) {
+      case (#RewardCommand(_)) true;
+      case (_) false;
+    };
 
     let eligibleVoters : [(Principal, Nat)] = Iter.toArray(
       Iter.filter<(Principal, Nat)>(
         Map.entries(axon.ledger),
         func(p : Principal, idx : Nat) : Bool {
-          p != treasuryId;
+          p != treasuryId or isRewardProposal // Разрешаем казначейству голосовать за награды
         },
       )
     );
@@ -819,6 +824,17 @@ shared ({ caller = creator }) actor class AxonService() = this {
       ),
       phash,
     );
+
+    if (isRewardProposal) {
+      let treasuryBalance = Option.get(Map.get(axon.ledger, phash, treasuryId), 0);
+      let treasuryBallot : CurrentTypes.Ballot = {
+        var voted_by = null;
+        principal = treasuryId;
+        votingPower = treasuryBalance;
+        var vote = ? #Yes;
+      };
+      ignore Map.put(ballots, phash, treasuryId, treasuryBallot);
+    };
 
     let now = Time.now();
     let timeStart = clamp(
@@ -1080,7 +1096,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
         axon with
         activeProposals = SB.fromArray<CurrentTypes.AxonProposal>(
           Array.filter<CurrentTypes.AxonProposal>(
-            updatedActiveProposals.toArray(),
+            Buffer.toArray(updatedActiveProposals),
             func(p) {
               p.id != proposal.id;
             },
@@ -1344,6 +1360,14 @@ shared ({ caller = creator }) actor class AxonService() = this {
 
     var maybeNewAxon : ?CurrentTypes.AxonFull = null;
     switch (startedProposal.proposal) {
+      case (#RewardCommand(reward)) {
+        // Mint reward tokens
+        let mintCommand : CurrentTypes.AxonCommandRequest = #Mint({
+          amount = reward.0.amount;
+          recipient = ?reward.0.recipient;
+        });
+        ignore await* _applyAxonCommand(axon, mintCommand);
+      };
       case (#NeuronCommand((command, _))) {
         // Forward command to specified neurons, or all
         let neuronIds = neuronIdsFromInfos(axon.id);
@@ -1800,7 +1824,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
           };
         };
 
-        let results = await proxy.mint_burn_batch(requestBuffer.toArray());
+        let results = await proxy.mint_burn_batch(Buffer.toArray(requestBuffer));
 
         let freshAxon = SB.get(state_current.axons, axon.id);
 
@@ -1986,6 +2010,97 @@ shared ({ caller = creator }) actor class AxonService() = this {
 
   // ---------------------------------------------------------------------------------
   //Reward Part
+  // ---------------------------------------------------------------------------------
+  stable var rewardSettingsEntries : [(Text, Nat)] = [
+    ("Reaction", 1),
+    ("Review", 10),
+    ("Registration", 20),
+    ("Vote", 1),
+  ];
+
+  func actionToText(action : CurrentTypes.RewardAction) : Text {
+    switch (action) {
+      case (#Reaction) "Reaction";
+      case (#Review) "Review";
+      case (#Registration) "Registration";
+      case (#Vote) "Vote";
+      case (#Custom(name)) name;
+    };
+  };
+
+  var rewardSettings = Map.fromIter<Text, Nat>(rewardSettingsEntries.vals(), Map.thash);
+
+  public shared (msg) func setRewards(action : CurrentTypes.RewardAction, reward : Nat) : async (Text, ?Nat) {
+    if (await is_admin(msg.caller)) {
+      let actionKey = actionToText(action);
+      ignore Map.put(rewardSettings, Map.thash, actionKey, reward);
+      return (actionKey, Map.get(rewardSettings, Map.thash, actionKey));
+    };
+    ("Admins only", null);
+  };
+
+  public shared query func getAllRewards() : async [(Text, Nat)] {
+    Iter.toArray(Map.entries(rewardSettings));
+  };
+
+  public shared query func getReward(action : CurrentTypes.RewardAction) : async ?Nat {
+    let actionKey = actionToText(action);
+    Map.get(rewardSettings, Map.thash, actionKey);
+  };
+
+  func _chooseRewardByAction(action : CurrentTypes.RewardAction) : Nat {
+    let actionKey = switch (action) {
+      case (#Reaction) "Reaction";
+      case (#Review) "Review";
+      case (#Registration) "Registration";
+      case (#Vote) "Vote";
+      case (#Custom(name)) name;
+    };
+    switch (Map.get(rewardSettings, Map.thash, actionKey)) {
+      case (null) 0;
+      case (?value) value;
+    };
+  };
+
+  public shared ({ caller }) func rewardUser(axonId : Nat, user : Principal, action : CurrentTypes.RewardAction) : async CurrentTypes.Result<()> {
+    // Check if caller is authorized app
+    //assert (isAuthorizedApp(caller));
+    // TODO check action
+    let axon = SB.get(state_current.axons, axonId);
+
+    // Check reward size
+    let amount = _chooseRewardByAction(action);
+
+    // Create a proposal
+    let proposal : CurrentTypes.ProposalType = #RewardCommand({ recipient = user; amount = amount; reason = action }, null);
+    let rewardProposal : CurrentTypes.NewProposal = {
+      axonId = axonId;
+      proposal = proposal;
+      timeStart = ?Time.now();
+      durationSeconds = ?(60 * 60); // 1 час на выполнение
+      execute = ?true;
+    };
+
+    let proposalResult = await propose(rewardProposal);
+
+    switch (proposalResult) {
+      case (#ok(proposal)) {
+        // Auto vote for proposal
+        ignore await vote({
+          axonId = axonId;
+          proposalId = proposal.id;
+          vote = #Yes;
+        });
+        ignore await execute(axonId, proposal.id);
+        #ok(());
+      };
+      case (#err(err)) {
+        #err(err);
+      };
+    };
+  };
+  // ---------------------------------------------------------------------------------
+
   public shared ({ caller }) func createRewardProposal(axonId : Nat, recipient : Principal, amount : Nat, reason : Text) : async CurrentTypes.Result<Nat> {
     assert (caller == rewardAdmin);
     // TODO add new ProposalType with reason
@@ -2091,10 +2206,11 @@ shared ({ caller = creator }) actor class AxonService() = this {
   // ---- System functions
 
   system func preupgrade() {
-
+    rewardSettingsEntries := Iter.toArray(Map.entries(rewardSettings));
   };
 
   system func postupgrade() {
+    rewardSettings := Map.fromIter<Text, Nat>(rewardSettingsEntries.vals(), Map.thash);
     // Restore ledger hashmap from entries
 
     //_Admins.postupgrade(_AdminsUD);
