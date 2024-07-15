@@ -1,5 +1,5 @@
 import Map_lib "mo:map_7_0_0/Map";
-import SB_lib "mo:stablebuffer_0_2_0/StableBuffer";
+import SB_lib "mo:stablebuffer_1_3_0/StableBuffer";
 import GT "../../GovernanceTypes";
 
 import Buffer "mo:base/Buffer";

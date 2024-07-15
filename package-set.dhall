@@ -15,22 +15,22 @@ let
   additions =
     [{ name = "map_7_0_0"
   , repo = "https://github.com/ZhenyaUsenko/motoko-hash-map"
-  , version = "v7.0.0"
+  , version = "v9.0.1"
   , dependencies = [ "base"]
   },
   { name = "map"
   , repo = "https://github.com/ZhenyaUsenko/motoko-hash-map"
-  , version = "v7.0.0"
+  , version = "v9.0.1"
   , dependencies = [ "base"]
   },
-  { name = "stablebuffer_0_2_0"
-  , repo = "https://github.com/skilesare/StableBuffer"
-  , version = "v0.2.0"
+  { name = "stablebuffer_1_3_0"
+  , repo = "https://github.com/canscale/StableBuffer"
+  , version = "v1.3.0"
   , dependencies = [ "base"]
   },
   { name = "StableBuffer"
-  , repo = "https://github.com/skilesare/StableBuffer"
-  , version = "v0.2.0"
+  , repo = "https://github.com/canscale/StableBuffer"
+  , version = "v1.3.0"
   , dependencies = [ "base"]
   },
   { name = "icrc1"

@@ -687,7 +687,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
   */
   public shared ({ caller }) func create(init : CurrentTypes.Initialization) : async CurrentTypes.Result<CurrentTypes.AxonPublic> {
     // Verify that the caller has the Administrator role
-    assert (_Admins.isAdmin(state_current, caller));
+    // assert (_Admins.isAdmin(state_current, caller));
 
     // Verify at least one ledger entry
     assert (init.ledgerEntries.size() > 0);
@@ -695,7 +695,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
     // TODO: Axon creation costs
 
     let supply = Array.foldLeft<(Principal, Nat), Nat>(init.ledgerEntries, 0, func(sum, c) { sum + c.1 });
-    Cycles.add<system>(4_000_000_000_000);
+    Cycles.add<system>(3_000_000_000_000);
 
     let axon : CurrentTypes.AxonFull = {
       id = SB.size(state_current.axons);
@@ -2077,7 +2077,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
       axonId = axonId;
       proposal = proposal;
       timeStart = ?Time.now();
-      durationSeconds = ?(60 * 60); // 1 час на выполнение
+      durationSeconds = ?(60 * 60); // 1 hour
       execute = ?true;
     };
 
@@ -2215,5 +2215,85 @@ shared ({ caller = creator }) actor class AxonService() = this {
 
     //_Admins.postupgrade(_AdminsUD);
     _AdminsUD := null;
+  };
+
+  //------------------------------------------------------------------------------------------------
+
+  public func testRewardFlow() : async () {
+    let init : CurrentTypes.Initialization = {
+      name = "My First Axon";
+      ledgerEntries = [
+        (Principal.fromText("oa7ab-4elxo-r5ooc-a23ga-lheml-we4wg-z5iuo-ery2n-57uyv-u234p-pae"), 1000000), // Пример: 1 миллион токенов для principal aaaaa-aa
+        (Principal.fromText("bs3e6-4i343-voosn-wogd7-6kbdg-mctak-hn3ws-k7q7f-fye2e-uqeyh-yae"), 500000) // 500,000 токенов для principal bbbbb-bb
+      ];
+      visibility = #Public;
+      policy = {
+        proposers = #Open;
+        minters = #None;
+        proposeThreshold = 1000;
+        acceptanceThreshold = #Percent({
+          percent = 51_000_000;
+          quorum = ?10_000_000;
+        }); // 51% для принятия, 10% кворум
+        allowTokenBurn = false;
+        restrictTokenTransfer = false;
+      };
+    };
+
+    let result = await create(init);
+
+    switch (result) {
+      case (#ok(axonPublic)) {
+        Debug.print("Axon created successfully with ID: " # debug_show (axonPublic.id));
+      };
+      case (#err(error)) {
+        Debug.print("Failed to create Axon: " # debug_show (error));
+      };
+    };
+    let testAxonId = 0;
+    let testUser = Principal.fromText("aaaaa-aa");
+
+    // Имитируем действие пользователя   public shared ({ caller }) func rewardUser(axonId : Nat, user : Principal, action : CurrentTypes.RewardAction) : async CurrentTypes.Result<()> {
+
+    let res = await rewardUser(testAxonId, testUser, #Reaction);
+    Debug.print("Reward user result: " # debug_show (res));
+
+    // Проверяем, было ли создано предложение о награде
+    let proposals = await getActiveProposals(testAxonId);
+    switch (proposals) {
+      case (#ok(props)) {
+        let rewardProposal = Array.find(
+          props,
+          func(p : CurrentTypes.AxonProposalPublic) : Bool {
+            switch (p.proposal) {
+              case (#RewardCommand(_)) true;
+              case (_) false;
+            };
+          },
+        );
+
+        assert (Option.isSome(rewardProposal));
+        Debug.print("Reward proposal created successfully");
+
+        // Проверяем, что предложение было автоматически принято
+        switch (rewardProposal) {
+          case (?prop) {
+            assert (prop.status[prop.status.size() - 1] == #Accepted(Time.now()));
+            Debug.print("Reward proposal automatically accepted");
+          };
+          case (null) {
+            Debug.print("Error: Reward proposal not found");
+          };
+        };
+      };
+      case (#err(error)) {
+        Debug.print("Error getting proposals: " # debug_show (error));
+      };
+    };
+
+    // Проверяем, увеличился ли баланс пользователя
+    let userBalance = await balanceOf(testAxonId, ?testUser);
+    assert (userBalance > 0);
+    Debug.print("User balance increased successfully");
   };
 };

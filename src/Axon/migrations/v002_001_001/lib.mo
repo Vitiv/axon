@@ -4,9 +4,8 @@ import v2_1_1_types = "types";
 
 import Map_lib "mo:map_7_0_0/Map";
 import Set_lib "mo:map_7_0_0/Set";
-import SB_lib "mo:stablebuffer_0_2_0/StableBuffer";
+import SB_lib "mo:stablebuffer_1_3_0/StableBuffer";
 import Iter "mo:base/Iter";
-import None "mo:base/None";
 import Debug "mo:base/Debug";
 import Principal "mo:base/Principal";
 
