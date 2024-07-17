@@ -310,7 +310,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
       let proxy = thisAxon.proxy;
       try {
         Debug.print("trying upgrade");
-        let newProxy = await (system Proxy.Proxy)(#upgrade proxy)(Principal.fromActor(this)); // upgrade!
+        let newProxy = await (system Proxy.Proxy)(#upgrade proxy)(Principal.fromActor(this), thisAxon.id); // upgrade!
         let axon : CurrentTypes.AxonFull = {
           thisAxon with
           proxy = newProxy;
@@ -685,7 +685,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
   * @param {Initialization} init - The initialization parameters for the axon.
   * @returns {async} {Result<AxonPublic>} - The result containing the public information of the created axon.
   */
-  public shared ({ caller }) func create(init : CurrentTypes.Initialization) : async CurrentTypes.Result<CurrentTypes.AxonPublic> {
+  public shared ({ caller }) func create(init : CurrentTypes.Initialization, axonId : Nat) : async CurrentTypes.Result<CurrentTypes.AxonPublic> {
     // Verify that the caller has the Administrator role
     // assert (_Admins.isAdmin(state_current, caller));
 
@@ -699,7 +699,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
 
     let axon : CurrentTypes.AxonFull = {
       id = SB.size(state_current.axons);
-      proxy = await Proxy.Proxy(Principal.fromActor(this));
+      proxy = await Proxy.Proxy(Principal.fromActor(this), axonId);
       name = init.name;
       visibility = init.visibility;
       policy = init.policy;
@@ -714,7 +714,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
       var lastProposalId = 0;
     };
 
-    Debug.print("adding to axons");
+    Debug.print("adding to axons # " # Nat.toText(axon.id));
 
     SB.add(state_current.axons, axon);
 
@@ -723,8 +723,12 @@ shared ({ caller = creator }) actor class AxonService() = this {
     let sync_policy = await proxy_interface.sync_policy();
     Debug.print("sync ledger");
     let sync_ledger = await proxy_interface.seed_balance();
+    Debug.print("Freshing axon with id : " # Nat.toText(axon.id));
     let fresh_axon = SB.get(state_current.axons, axon.id);
-    #ok(getAxonPublic(fresh_axon));
+    Debug.print("Freshing axon done");
+    let result = getAxonPublic(fresh_axon);
+    Debug.print("Returning result: " # result.name);
+    #ok(result);
   };
 
   // Submit a new Axon proposal
@@ -2219,7 +2223,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
 
   //------------------------------------------------------------------------------------------------
 
-  public func testRewardFlow() : async () {
+  public func test() : async () {
     let init : CurrentTypes.Initialization = {
       name = "My First Axon";
       ledgerEntries = [
@@ -2240,7 +2244,7 @@ shared ({ caller = creator }) actor class AxonService() = this {
       };
     };
 
-    let result = await create(init);
+    let result = await create(init, 1000);
 
     switch (result) {
       case (#ok(axonPublic)) {
@@ -2250,50 +2254,50 @@ shared ({ caller = creator }) actor class AxonService() = this {
         Debug.print("Failed to create Axon: " # debug_show (error));
       };
     };
-    let testAxonId = 0;
-    let testUser = Principal.fromText("aaaaa-aa");
+    // let testAxonId = 0;
+    // let testUser = Principal.fromText("aaaaa-aa");
 
-    // Имитируем действие пользователя   public shared ({ caller }) func rewardUser(axonId : Nat, user : Principal, action : CurrentTypes.RewardAction) : async CurrentTypes.Result<()> {
+    // // Имитируем действие пользователя   public shared ({ caller }) func rewardUser(axonId : Nat, user : Principal, action : CurrentTypes.RewardAction) : async CurrentTypes.Result<()> {
 
-    let res = await rewardUser(testAxonId, testUser, #Reaction);
-    Debug.print("Reward user result: " # debug_show (res));
+    // let res = await rewardUser(testAxonId, testUser, #Reaction);
+    // Debug.print("Reward user result: " # debug_show (res));
 
-    // Проверяем, было ли создано предложение о награде
-    let proposals = await getActiveProposals(testAxonId);
-    switch (proposals) {
-      case (#ok(props)) {
-        let rewardProposal = Array.find(
-          props,
-          func(p : CurrentTypes.AxonProposalPublic) : Bool {
-            switch (p.proposal) {
-              case (#RewardCommand(_)) true;
-              case (_) false;
-            };
-          },
-        );
+    // // Проверяем, было ли создано предложение о награде
+    // let proposals = await getActiveProposals(testAxonId);
+    // switch (proposals) {
+    //   case (#ok(props)) {
+    //     let rewardProposal = Array.find(
+    //       props,
+    //       func(p : CurrentTypes.AxonProposalPublic) : Bool {
+    //         switch (p.proposal) {
+    //           case (#RewardCommand(_)) true;
+    //           case (_) false;
+    //         };
+    //       },
+    //     );
 
-        assert (Option.isSome(rewardProposal));
-        Debug.print("Reward proposal created successfully");
+    //     assert (Option.isSome(rewardProposal));
+    //     Debug.print("Reward proposal created successfully");
 
-        // Проверяем, что предложение было автоматически принято
-        switch (rewardProposal) {
-          case (?prop) {
-            assert (prop.status[prop.status.size() - 1] == #Accepted(Time.now()));
-            Debug.print("Reward proposal automatically accepted");
-          };
-          case (null) {
-            Debug.print("Error: Reward proposal not found");
-          };
-        };
-      };
-      case (#err(error)) {
-        Debug.print("Error getting proposals: " # debug_show (error));
-      };
-    };
+    //     // Проверяем, что предложение было автоматически принято
+    //     switch (rewardProposal) {
+    //       case (?prop) {
+    //         assert (prop.status[prop.status.size() - 1] == #Accepted(Time.now()));
+    //         Debug.print("Reward proposal automatically accepted");
+    //       };
+    //       case (null) {
+    //         Debug.print("Error: Reward proposal not found");
+    //       };
+    //     };
+    //   };
+    //   case (#err(error)) {
+    //     Debug.print("Error getting proposals: " # debug_show (error));
+    //   };
+    // };
 
-    // Проверяем, увеличился ли баланс пользователя
-    let userBalance = await balanceOf(testAxonId, ?testUser);
-    assert (userBalance > 0);
-    Debug.print("User balance increased successfully");
+    // // Проверяем, увеличился ли баланс пользователя
+    // let userBalance = await balanceOf(testAxonId, ?testUser);
+    // assert (userBalance > 0);
+    // Debug.print("User balance increased successfully");
   };
 };

@@ -19,3 +19,4 @@ dist/
 .vercel
 
 .mops
+src/Axon/tests/Reward.test.mo

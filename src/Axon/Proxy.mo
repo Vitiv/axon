@@ -38,7 +38,7 @@ import AccountIdentifier "mo:principal/AccountIdentifier";
 
   Can only be called by its creator, which should be Axon.
 */
-shared actor class Proxy(owner : Principal) = this {
+shared actor class Proxy(owner : Principal, axonId : Nat) = this {
   let Governance = actor "rrkah-fqaaa-aaaaa-aaaaq-cai" : GT.Service;
   stable var neurons : ?GT.ListNeuronsResponse = null;
 
@@ -424,7 +424,7 @@ shared actor class Proxy(owner : Principal) = this {
       return #Err(#GenericError({ error_code = 1; message = "This token does not allow transfers" }));
     };
 
-    let result = await* ICRC1.transfer(token, args, caller);
+    let result = await ICRC1.transfer(token, args, caller);
 
     let requests = Buffer.Buffer<(Principal, Nat)>(2);
 
@@ -466,7 +466,7 @@ shared actor class Proxy(owner : Principal) = this {
   public shared ({ caller }) func mint(args : ICRC1.Mint) : async ICRC1.TransferResult {
     Debug.print("in mint in proxy " # debug_show ((caller, axon)));
     assert (caller == axon);
-    let result = await* ICRC1.mint(
+    let result = await ICRC1.mint(
       token,
       {
         args with
@@ -510,7 +510,7 @@ shared actor class Proxy(owner : Principal) = this {
     if (allow_burn == false) {
       return #Err(#GenericError({ error_code = 2; message = "This token does not allow burn" }));
     };
-    let result = await* ICRC1.burn(
+    let result = await ICRC1.burn(
       token,
       {
         from_subaccount = null;
@@ -571,7 +571,7 @@ shared actor class Proxy(owner : Principal) = this {
     for (thisItem in args.vals()) {
       switch (thisItem) {
         case (#Mint(args)) {
-          let result = await* ICRC1.mint(
+          let result = await ICRC1.mint(
             token,
             {
               args with
@@ -597,7 +597,7 @@ shared actor class Proxy(owner : Principal) = this {
           all_results.add(result);
         };
         case (#Burn(args)) {
-          let result = await* ICRC1.burn(
+          let result = await ICRC1.burn(
             token,
             {
               from_subaccount = null;
@@ -630,11 +630,11 @@ shared actor class Proxy(owner : Principal) = this {
           if (balance != args.amount) {
             let result = if (balance > args.amount) {
 
-              await* ICRC1.burn(token, { from_subaccount = null; amount = balance - args.amount; memo = args.memo; created_at_time = args.created_at_time }, args.owner.owner);
+              await ICRC1.burn(token, { from_subaccount = null; amount = balance - args.amount; memo = args.memo; created_at_time = args.created_at_time }, args.owner.owner);
 
             } else {
 
-              await* ICRC1.mint(
+              await ICRC1.mint(
                 token,
                 {
                   args with
@@ -687,7 +687,7 @@ shared actor class Proxy(owner : Principal) = this {
 
   // Additional functions not included in the ICRC1 standard
   public shared func get_transaction(i : ICRC1.TxIndex) : async ?ICRC1.Transaction {
-    await* ICRC1.get_transaction(token, i);
+    await ICRC1.get_transaction(token, i);
   };
 
   // Deposit cycles into this canister.
@@ -707,7 +707,6 @@ shared actor class Proxy(owner : Principal) = this {
 
   stable var no_transfer = false;
   stable var allow_burn = false;
-  stable var axonId = 999999999999999;
 
   let minting_subaccount = Blob.fromArray([255, 34, 56, 2, 34, 5, 5, 6, 7, 8, 34, 2, 6, 7, 234, 1, 6, 167, 56, 2, 34, 5, 5, 6, 7, 8, 234, 45, 98, 124, 189, 123]);
 
@@ -717,9 +716,9 @@ shared actor class Proxy(owner : Principal) = this {
     * @returns {async} {Result.Result<Bool,Text>} - The result of policy synchronization.
     */
   public shared ({ caller }) func sync_policy() : async Result.Result<Bool, Text> {
-    Debug.print("sync policy" # debug_show (axonId));
+    Debug.print("sync policy " # debug_show (axonId));
     assert (caller == axon);
-    ignore accept_all_cycles();
+    ignore accept_all_cycles<system>();
 
     let axon_service : Axon.Self = actor (Principal.toText(axon));
 
@@ -752,7 +751,7 @@ shared actor class Proxy(owner : Principal) = this {
         subaccount = ?minting_subaccount;
       };
     };
-    axonId := a_axon.id;
+    // axonId := a_axon.id;
     no_transfer := a_axon.policy.restrictTokenTransfer;
     allow_burn := a_axon.policy.allowTokenBurn;
 
@@ -767,16 +766,16 @@ shared actor class Proxy(owner : Principal) = this {
     * @returns {async} {Result.Result<Bool,Text>} - The result of balance seeding.
     */
   public shared ({ caller }) func seed_balance() : async Result.Result<Bool, Text> {
-    Debug.print("seed balance" # debug_show (axonId));
+    Debug.print("seed balance " # debug_show (axonId));
     if (caller == axon and is_seeded == false) {
-      ignore accept_all_cycles();
+      ignore accept_all_cycles<system>();
 
       let axon_service : Axon.Self = actor (Principal.toText(owner));
 
       let thisLedger = await axon_service.ledger(axonId);
 
       for (thisItem in thisLedger.vals()) {
-        let result = await* ICRC1.mint(
+        let result = await ICRC1.mint(
           token,
           {
             from_subaccount = ?minting_subaccount;

@@ -36,7 +36,7 @@
   "defaults": {
     "build": {
       "args": "",
-      "packtool": "mops sources"
+      "packtool": "vessel sources"
     },
     "replica": {
       "subnet_type": "system"
