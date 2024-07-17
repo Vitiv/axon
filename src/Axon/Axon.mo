@@ -2105,107 +2105,107 @@ shared ({ caller = creator }) actor class AxonService() = this {
   };
   // ---------------------------------------------------------------------------------
 
-  public shared ({ caller }) func createRewardProposal(axonId : Nat, recipient : Principal, amount : Nat, reason : Text) : async CurrentTypes.Result<Nat> {
-    assert (caller == rewardAdmin);
-    // TODO add new ProposalType with reason
-    let prop : CurrentTypes.ProposalType = #AxonCommand(#Mint({ amount = amount; recipient = ?recipient }), null);
+  // public shared ({ caller }) func createRewardProposal(axonId : Nat, recipient : Principal, amount : Nat, reason : Text) : async CurrentTypes.Result<Nat> {
+  //   assert (caller == rewardAdmin);
+  //   // TODO add new ProposalType with reason
+  //   let prop : CurrentTypes.ProposalType = #AxonCommand(#Mint({ amount = amount; recipient = ?recipient }), null);
 
-    let newProposal : CurrentTypes.NewProposal = {
-      axonId = axonId;
-      proposal = prop;
-      timeStart = ?Time.now();
-      durationSeconds = ?(60 * 60); // 1 hour
-      execute = ?(true);
-    };
+  //   let newProposal : CurrentTypes.NewProposal = {
+  //     axonId = axonId;
+  //     proposal = prop;
+  //     timeStart = ?Time.now();
+  //     durationSeconds = ?(60 * 60); // 1 hour
+  //     execute = ?(true);
+  //   };
 
-    let proposalResult = await propose(newProposal);
+  //   let proposalResult = await propose(newProposal);
 
-    switch (proposalResult) {
-      case (#ok(proposal)) {
-        // Auto-vote for the proposal
-        ignore _voteForMintProposal(0, proposal.id);
-        #ok(proposal.id);
-      };
-      case (#err(err)) {
-        #err(err);
-      };
-    };
-  };
+  //   switch (proposalResult) {
+  //     case (#ok(proposal)) {
+  //       // Auto-vote for the proposal
+  //       ignore _voteForMintProposal(0, proposal.id);
+  //       #ok(proposal.id);
+  //     };
+  //     case (#err(err)) {
+  //       #err(err);
+  //     };
+  //   };
+  // };
 
-  private func _createMintProposal(axonId : Nat) : async () {
-    let reward = 10; // TODO set reward
+  // private func _createMintProposal(axonId : Nat) : async () {
+  //   let reward = 10; // TODO set reward
 
-    // Create a new proposal
-    // TODO change ProposalType to AxonCommand #Mint or a new type like #Reward
-    let prop = #CanisterCommand(
-      {
-        canister = Principal.fromActor(this);
-        functionName = "mint";
-        argumentBinary = Blob.fromArray([/* Encode the mint arguments here */]);
-        note = "Mint reward";
-        cycles = 0;
-      },
-      null,
-    );
+  //   // Create a new proposal
+  //   // TODO change ProposalType to AxonCommand #Mint or a new type like #Reward
+  //   let prop = #CanisterCommand(
+  //     {
+  //       canister = Principal.fromActor(this);
+  //       functionName = "mint";
+  //       argumentBinary = Blob.fromArray([/* Encode the mint arguments here */]);
+  //       note = "Mint reward";
+  //       cycles = 0;
+  //     },
+  //     null,
+  //   );
 
-    let newProposal : CurrentTypes.NewProposal = {
-      axonId = axonId;
-      proposal = prop;
-      timeStart = ?Time.now();
-      durationSeconds = ?(60 * 60); // 1 hour
-      execute = ?(true);
-    };
+  //   let newProposal : CurrentTypes.NewProposal = {
+  //     axonId = axonId;
+  //     proposal = prop;
+  //     timeStart = ?Time.now();
+  //     durationSeconds = ?(60 * 60); // 1 hour
+  //     execute = ?(true);
+  //   };
 
-    let proposalResult = await propose(newProposal);
+  //   let proposalResult = await propose(newProposal);
 
-    switch (proposalResult) {
-      case (#ok(proposal)) {
-        Debug.print("Mint proposal created successfully for: " # Nat.toText(reward) # " tokens.");
-        // Automatic voting by DAO admin
-        await _voteForMintProposal(axonId, proposal.id);
-      };
-      case (#err(err)) {
-        Debug.print("Failed to create mint proposal for: " # debug_show (err));
-      };
-    };
-  };
+  //   switch (proposalResult) {
+  //     case (#ok(proposal)) {
+  //       Debug.print("Mint proposal created successfully for: " # Nat.toText(reward) # " tokens.");
+  //       // Automatic voting by DAO admin
+  //       await _voteForMintProposal(axonId, proposal.id);
+  //     };
+  //     case (#err(err)) {
+  //       Debug.print("Failed to create mint proposal for: " # debug_show (err));
+  //     };
+  //   };
+  // };
 
-  private func _voteForMintProposal(axonId : Nat, proposalId : Nat) : async () {
-    // Vote for mint proposal
-    let voteRequest = {
-      axonId = axonId;
-      proposalId = proposalId;
-      vote = #Yes;
-    };
+  // private func _voteForMintProposal(axonId : Nat, proposalId : Nat) : async () {
+  //   // Vote for mint proposal
+  //   let voteRequest = {
+  //     axonId = axonId;
+  //     proposalId = proposalId;
+  //     vote = #Yes;
+  //   };
 
-    let voteResult = await vote(voteRequest);
+  //   let voteResult = await vote(voteRequest);
 
-    // Check the vote result
-    switch (voteResult) {
-      case (#ok(_)) {
-        Debug.print("Voted successfully for mint proposal: " # Nat.toText(proposalId));
-        // Auto Execute
-        await _executeMintProposal(axonId, proposalId);
-      };
-      case (#err(err)) {
-        Debug.print("Failed to vote for mint proposal: " # Nat.toText(proposalId) # " - " # debug_show (err));
-      };
-    };
-  };
+  //   // Check the vote result
+  //   switch (voteResult) {
+  //     case (#ok(_)) {
+  //       Debug.print("Voted successfully for mint proposal: " # Nat.toText(proposalId));
+  //       // Auto Execute
+  //       await _executeMintProposal(axonId, proposalId);
+  //     };
+  //     case (#err(err)) {
+  //       Debug.print("Failed to vote for mint proposal: " # Nat.toText(proposalId) # " - " # debug_show (err));
+  //     };
+  //   };
+  // };
 
-  private func _executeMintProposal(axonId : Nat, proposalId : Nat) : async () {
-    let executeResult = await execute(axonId, proposalId);
+  // private func _executeMintProposal(axonId : Nat, proposalId : Nat) : async () {
+  //   let executeResult = await execute(axonId, proposalId);
 
-    // Check the execute result
-    switch (executeResult) {
-      case (#ok(proposal)) {
-        Debug.print("Mint proposal executed successfully: " # Nat.toText(proposalId));
-      };
-      case (#err(err)) {
-        Debug.print("Failed to execute mint proposal: " # Nat.toText(proposalId) # " - " # debug_show (err));
-      };
-    };
-  };
+  //   // Check the execute result
+  //   switch (executeResult) {
+  //     case (#ok(proposal)) {
+  //       Debug.print("Mint proposal executed successfully: " # Nat.toText(proposalId));
+  //     };
+  //     case (#err(err)) {
+  //       Debug.print("Failed to execute mint proposal: " # Nat.toText(proposalId) # " - " # debug_show (err));
+  //     };
+  //   };
+  // };
 
   // ---- System functions
 
